@@ -6,6 +6,9 @@ export AUTO_NOTIFY_VERSION="0.10.2"
 # Threshold in seconds for when to automatically show a notification
 [[ -z "$AUTO_NOTIFY_THRESHOLD" ]] &&
     export AUTO_NOTIFY_THRESHOLD=10
+# Toggle notifications for SSH sessions
+[[ -z "$AUTO_NOTIFY_ENABLE_SSH" ]] &&
+    export AUTO_NOTIFY_ENABLE_SSH=0
 
 # List of commands/programs to ignore sending notifications for
 [[ -z "$AUTO_NOTIFY_IGNORE" ]] &&
@@ -68,7 +71,16 @@ function _auto_notify_message() {
 	if [[ -n "$icon" ]]; then
             arguments+=("--icon=$icon")
 	fi
+
+    if [[ -n "${SSH_CLIENT}" ]]; then
+        LOCAL_IP=${SSH_CLIENT%% *};
+        ssh "${USER}"@"${LOCAL_IP}" "$(printf '%q ' notify-send "${arguments[@]}")"
+    elif [[ -n "${SSH_CONNECTION}" ]]; then
+        LOCAL_IP=${SSH_CONNECTION%% *};
+        ssh "${USER}"@"${LOCAL_IP}" "$(printf '%q ' notify-send "${arguments[@]}")"
+    else
         notify-send ${arguments[@]}
+    fi
 
     elif [[ "$platform" == "Darwin" ]]; then
         osascript \
@@ -92,8 +104,10 @@ function _is_auto_notify_ignored() {
 
     # If the command is being run over SSH, then ignore it
     if [[ -n ${SSH_CLIENT-} || -n ${SSH_TTY-} || -n ${SSH_CONNECTION-} ]]; then
-        print "yes"
-        return
+        if [[ "$AUTO_NOTIFY_ENABLE_SSH" == "0" ]]; then
+            print "yes"
+            return
+        fi
     fi
 
     # Remove sudo prefix from command if detected
